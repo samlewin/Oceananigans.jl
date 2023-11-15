@@ -61,6 +61,51 @@ function fill_halo_regions!(c::MaybeTupledData, boundary_conditions, indices, lo
     return nothing
 end
 
+# THIS FUNCTION DOESN'T EXIST. It was just created as a duplicate of fill_halo_regions! above,
+# to test where seg faults occur (use this in place of actual fill_halo_regions! in tupled_fill_halo_regions!)
+function ORDINARY_fill_halo_regions!(c::MaybeTupledData, boundary_conditions, indices, loc, grid, args...; kwargs...)
+
+    arch = architecture(grid)
+
+    fill_halos!, bcs  = permute_boundary_conditions(boundary_conditions)
+    number_of_tasks   = length(fill_halos!)
+    
+    # Fill halo in the three permuted directions (1, 2, and 3), making sure dependencies are fulfilled
+    # SEG FAULT HERE:
+    for task = 1:number_of_tasks
+        #=
+        @show "ARG TYPES FOR ORDINARY FIELDS:"
+        @show typeof(c)
+        @show typeof(fill_halos![task])
+        @show typeof(bcs[task])
+        @show typeof(indices)
+        @show typeof(loc)
+        @show typeof(arch)
+        @show typeof(grid)
+        @show typeof(args)
+        @show "END"
+        =#
+        # This is where the seg fault occurs, not any of the lines within the function, just calling it... huh?
+        ORDINARY_fill_halo_event!(c, fill_halos![task], bcs[task], indices, loc, arch, grid, args...; kwargs...)
+    end
+    
+    return nothing
+end
+
+# THIS FUNCTION DOESN'T EXIST. Copy of fill_halo_event! for finding seg fault
+function ORDINARY_fill_halo_event!(c, fill_halos!, bcs, indices, loc, arch, grid, args...; kwargs...)
+
+    # Calculate size and offset of the fill_halo kernel
+    # We assume that the kernel size is the same for west and east boundaries, 
+    # south and north boundaries, and bottom and top boundaries
+    #size   = fill_halo_size(c, fill_halos!, indices, bcs[1], loc, grid)
+    #offset = fill_halo_offset(size, fill_halos!, indices)
+
+    #fill_halos!(c, bcs..., size, offset, loc, arch, grid, args...; kwargs...)
+
+    return nothing
+end
+
 function fill_halo_event!(c, fill_halos!, bcs, indices, loc, arch, grid, args...; kwargs...)
 
     # Calculate size and offset of the fill_halo kernel

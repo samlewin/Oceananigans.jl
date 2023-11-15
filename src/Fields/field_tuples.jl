@@ -54,42 +54,35 @@ Fill halo regions for all `fields`. The algorithm:
 function fill_halo_regions!(maybe_nested_tuple::Union{NamedTuple, Tuple}, args...; kwargs...)
     flattened = flattened_unique_values(maybe_nested_tuple)
 
-    # Sort fields into ReducedField and Field with non-nothing boundary conditions
     fields_with_bcs = filter(f -> !isnothing(boundary_conditions(f)), flattened)
-    reduced_fields  = filter(f -> f isa ReducedField, fields_with_bcs)
-    
-    for field in reduced_fields
-        fill_halo_regions!(field, args...; kwargs...)
-    end
-
-    # MultiRegion fields are considered windowed_fields (indices isa MultiRegionObject))
-    windowed_fields = filter(f -> !(f isa FullField), fields_with_bcs)
+    #windowed_fields = filter(f -> !(f isa FullField), fields_with_bcs)
     ordinary_fields = filter(f -> (f isa FullField) && !(f isa ReducedField), fields_with_bcs)
-
-    # Fill halo regions for reduced and windowed fields
-    for field in windowed_fields
-        fill_halo_regions!(field, args...; kwargs...)
-    end
-
+    
+    # SEG FAULT HERE:
     # Fill the rest
     if !isempty(ordinary_fields)
         grid = first(ordinary_fields).grid
-        tupled_fill_halo_regions!(ordinary_fields, grid, args...; kwargs...)
+        tupled_fill_halo_regions!(ordinary_fields, grid, args...; kwargs...) # <- SEG FAULT HERE BILLY!
     end
-
+    
     return nothing
 end
 
 function tupled_fill_halo_regions!(fields, grid, args...; kwargs...)
 
     # We cannot group windowed fields together, the indices must be (:, :, :)!
-    indices = default_indices(3)        
-
+    indices = default_indices(3)      
+    #@show data
+    #@show fields
+    #@show typeof(map(data, fields))
+    # SEG FAULT HERE. Pretty sure this is fill_halo_regions! from fill_halo_regions.jl
     return fill_halo_regions!(map(data, fields),
                               map(boundary_conditions, fields),
                               indices,
                               map(instantiated_location, fields),
                               grid, args...; kwargs...)
+
+    #return nothing
 end
 
 #####
@@ -134,6 +127,9 @@ function validate_field_tuple_grid(tuple_name, field_tuple, grid)
 
     return nothing
 end
+
+
+
 
 #####
 ##### Velocity fields tuples

@@ -8,7 +8,10 @@ export
     validate_boundary_condition_topology, validate_boundary_condition_architecture,
     FieldBoundaryConditions,
     apply_x_bcs!, apply_y_bcs!, apply_z_bcs!,
-    fill_halo_regions!
+    fill_halo_regions!,
+    # Added for Enzymanigans:
+    tupled_fill_halo_regions!
+    #ORDINARY_fill_halo_regions! # Modified for testing for this seg fault
 
 using CUDA
 using KernelAbstractions: @index, @kernel

@@ -8,6 +8,8 @@ export interior, data, xnode, ynode, znode, location
 export set!, compute!, @compute, regrid!
 export VelocityFields, TracerFields, tracernames, PressureFields, TendencyFields
 export interpolate
+# ADDED for Enzymanigans:
+export flattened_unique_values, tupled_fill_halo_regions!
 
 using Oceananigans.Architectures
 using Oceananigans.Grids
