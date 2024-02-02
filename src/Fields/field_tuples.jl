@@ -11,27 +11,11 @@ Return values of the (possibly nested) `NamedTuple` `a`,
 flattened into a single tuple, with duplicate entries removed.
 """
 @inline function flattened_unique_values(a::Union{NamedTuple, Tuple})
-    tupled = Tuple(tuplify(ai) for ai in a)
-    flattened = flatten_tuple(tupled)
-
-    # Alternative implementation of `unique` for tuples that uses === comparison, rather than ==
-    seen = []
-    return Tuple(last(push!(seen, f)) for f in flattened if !any(f === s for s in seen))
+    
+    return flatten_tuple(Tuple(tuplify(ai) for ai in a))
 end
 
 const FullField = Field{<:Any, <:Any, <:Any, <:Any, <:Any, <:Tuple{<:Colon, <:Colon, <:Colon}}
-
-# Utility for extracting values from nested NamedTuples
-@inline tuplify(a::NamedTuple) = Tuple(tuplify(ai) for ai in a)
-@inline tuplify(a) = a
-
-# Outer-inner form
-@inline flatten_tuple(a::Tuple) = tuple(inner_flatten_tuple(a[1])..., inner_flatten_tuple(a[2:end])...)
-@inline flatten_tuple(a::Tuple{<:Any}) = tuple(inner_flatten_tuple(a[1])...)
-
-@inline inner_flatten_tuple(a) = tuple(a)
-@inline inner_flatten_tuple(a::Tuple) = flatten_tuple(a)
-@inline inner_flatten_tuple(a::Tuple{}) = ()
 
 """
     fill_halo_regions!(fields::NamedTuple, args...; kwargs...) 
@@ -52,44 +36,47 @@ Fill halo regions for all `fields`. The algorithm:
      are filled simultaneously.
 """
 function fill_halo_regions!(maybe_nested_tuple::Union{NamedTuple, Tuple}, args...; kwargs...)
-    flattened = flattened_unique_values(maybe_nested_tuple)
-
-    # Sort fields into ReducedField and Field with non-nothing boundary conditions
-    fields_with_bcs = filter(f -> !isnothing(boundary_conditions(f)), flattened)
-    reduced_fields  = filter(f -> f isa ReducedField, fields_with_bcs)
+    fields = flatten_tuple(Tuple(tuplify(ai) for ai in maybe_nested_tuple))
     
-    for field in reduced_fields
-        fill_halo_regions!(field, args...; kwargs...)
-    end
-
-    # MultiRegion fields are considered windowed_fields (indices isa MultiRegionObject))
-    windowed_fields = filter(f -> !(f isa FullField), fields_with_bcs)
-    ordinary_fields = filter(f -> (f isa FullField) && !(f isa ReducedField), fields_with_bcs)
-
-    # Fill halo regions for reduced and windowed fields
-    for field in windowed_fields
-        fill_halo_regions!(field, args...; kwargs...)
-    end
-
     # Fill the rest
-    if !isempty(ordinary_fields)
-        grid = first(ordinary_fields).grid
-        tupled_fill_halo_regions!(ordinary_fields, grid, args...; kwargs...)
-    end
+    c  = map(data, fields)
+    bc = map(boundary_conditions, fields)
+    
+    sides = [:bottom_and_top]
+    bc = Tuple((extract_bottom_bc(bc), extract_top_bc(bc)) for side in sides)
 
     return nothing
 end
 
-function tupled_fill_halo_regions!(fields, grid, args...; kwargs...)
+for dir in (:bottom, :top)
+    extract_side_bc = Symbol(:extract_, dir, :_bc)
+    @eval begin
+        @inline $extract_side_bc(bc) = bc.$dir
+        @inline $extract_side_bc(bc::Tuple) = map($extract_side_bc, bc)
+    end
+end
 
-    # We cannot group windowed fields together, the indices must be (:, :, :)!
-    indices = default_indices(3)        
+# Utility for extracting values from nested NamedTuples
+@inline tuplify(a::NamedTuple) = Tuple(tuplify(ai) for ai in a)
+@inline tuplify(a) = a
 
-    return fill_halo_regions!(map(data, fields),
-                              map(boundary_conditions, fields),
-                              indices,
-                              map(instantiated_location, fields),
-                              grid, args...; kwargs...)
+# Outer-inner form
+@inline flatten_tuple(a::Tuple) = tuple(inner_flatten_tuple(a[1])..., inner_flatten_tuple(a[2:end])...)
+@inline flatten_tuple(a::Tuple{<:Any}) = tuple(inner_flatten_tuple(a[1])...)
+
+@inline inner_flatten_tuple(a) = tuple(a)
+@inline inner_flatten_tuple(a::Tuple) = flatten_tuple(a)
+@inline inner_flatten_tuple(a::Tuple{}) = ()
+
+function tupled_fill_halo_regions!(fields)
+
+    c  = map(data, fields)
+    bc = map(boundary_conditions, fields)
+    
+    sides = [:bottom_and_top]
+    bc = Tuple((extract_bottom_bc(bc), extract_top_bc(bc)) for side in sides)
+
+    return bc
 end
 
 #####

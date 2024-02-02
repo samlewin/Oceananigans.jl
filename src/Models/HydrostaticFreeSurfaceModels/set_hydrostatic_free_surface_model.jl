@@ -46,21 +46,39 @@ model.velocities.u
 ```
 """
 @inline function set!(model::HydrostaticFreeSurfaceModel; kwargs...)
-    for (fldname, value) in kwargs
-        if fldname ∈ propertynames(model.velocities)
-            ϕ = getproperty(model.velocities, fldname)
-        elseif fldname ∈ propertynames(model.tracers)
-            ϕ = getproperty(model.tracers, fldname)
-        elseif fldname ∈ propertynames(model.free_surface)
-            ϕ = getproperty(model.free_surface, fldname)
-        else
-            throw(ArgumentError("name $fldname not found in model.velocities, model.tracers, or model.free_surface"))
-        end
+    
+    maybe_nested_tuple = prognostic_fields(model)
 
-        @apply_regionally set!(ϕ, value)
-    end
-
-    update_state!(model)
+    fields = flatten_tuple(Tuple(tuplify(ai) for ai in maybe_nested_tuple))
+    
+    # Fill the rest
+    bc = map(boundary_conditions, fields)
+    
+    sides = [:bottom_and_top]
+    bc = Tuple((map(extract_bottom_bc, bc), map(extract_top_bc, bc)) for side in sides)
 
     return nothing
 end
+
+function boundary_conditions(f::Field)
+    return f.boundary_conditions
+end
+
+@inline extract_bottom_bc(thing) = thing.bottom
+@inline extract_top_bc(thing) = thing.top
+
+# Utility for extracting values from nested NamedTuples
+@inline tuplify(a::NamedTuple) = Tuple(tuplify(ai) for ai in a)
+@inline tuplify(a) = a
+
+# Outer-inner form
+@inline flatten_tuple(a::Tuple) = tuple(inner_flatten_tuple(a[1])..., inner_flatten_tuple(a[2:end])...)
+@inline flatten_tuple(a::Tuple{<:Any}) = tuple(inner_flatten_tuple(a[1])...)
+
+@inline inner_flatten_tuple(a) = tuple(a)
+@inline inner_flatten_tuple(a::Tuple) = flatten_tuple(a)
+@inline inner_flatten_tuple(a::Tuple{}) = ()
+
+#
+# END OF REDUCTION
+#

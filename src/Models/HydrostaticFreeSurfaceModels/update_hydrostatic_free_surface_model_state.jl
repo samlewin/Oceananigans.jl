@@ -25,32 +25,47 @@ Update peripheral aspects of the model (auxiliary fields, halo regions, diffusiv
 hydrostatic pressure) to the current model state. If `callbacks` are provided (in an array),
 they are called in the end.
 """
+#
+# BEGIN REDUCTION
+#
 update_state!(model::HydrostaticFreeSurfaceModel, callbacks=[]; compute_tendencies = true) =
-         update_state!(model, model.grid, callbacks; compute_tendencies)
+         update_state!(prognostic_fields(model))
 
-function update_state!(model::HydrostaticFreeSurfaceModel, grid, callbacks; compute_tendencies = true)
+function update_state!(maybe_nested_tuple)
 
-    @apply_regionally mask_immersed_model_fields!(model, grid)
+    fields = flatten_tuple(Tuple(tuplify(ai) for ai in maybe_nested_tuple))
     
-    # Update possible FieldTimeSeries used in the model
-    @apply_regionally update_model_field_time_series!(model, model.clock)
-
-    fill_halo_regions!(prognostic_fields(model), model.clock, fields(model); async = true)
-
-    @apply_regionally replace_horizontal_vector_halos!(model.velocities, model.grid)
-    @apply_regionally compute_auxiliaries!(model)
-
-    fill_halo_regions!(model.diffusivity_fields; only_local_halos = true)
-
-    [callback(model) for callback in callbacks if callback.callsite isa UpdateStateCallsite]
+    # Fill the rest
+    bc = map(boundary_conditions, fields)
     
-    update_biogeochemical_state!(model.biogeochemistry, model)
-
-    compute_tendencies && 
-        @apply_regionally compute_tendencies!(model, callbacks)
+    sides = [:bottom_and_top]
+    bc = Tuple((map(extract_bottom_bc, bc), map(extract_top_bc, bc)) for side in sides)
 
     return nothing
 end
+
+function boundary_conditions(f::Field)
+    return f.boundary_conditions
+end
+
+@inline extract_bottom_bc(thing) = thing.bottom
+@inline extract_top_bc(thing) = thing.top
+
+# Utility for extracting values from nested NamedTuples
+@inline tuplify(a::NamedTuple) = Tuple(tuplify(ai) for ai in a)
+@inline tuplify(a) = a
+
+# Outer-inner form
+@inline flatten_tuple(a::Tuple) = tuple(inner_flatten_tuple(a[1])..., inner_flatten_tuple(a[2:end])...)
+@inline flatten_tuple(a::Tuple{<:Any}) = tuple(inner_flatten_tuple(a[1])...)
+
+@inline inner_flatten_tuple(a) = tuple(a)
+@inline inner_flatten_tuple(a::Tuple) = flatten_tuple(a)
+@inline inner_flatten_tuple(a::Tuple{}) = ()
+
+#
+# END OF REDUCTION
+#
 
 # Mask immersed fields
 function mask_immersed_model_fields!(model, grid)
