@@ -28,43 +28,8 @@ tuple_string(tup::Tuple{}) = ""
 
 function set!(u::Field, f::Function)
 
-    # Determine cpu_grid and cpu_u
-    if architecture(u) isa GPU
-        cpu_grid = on_architecture(CPU(), u.grid)
-        cpu_u = Field(location(u), cpu_grid; indices = indices(u))
-    elseif architecture(u) isa CPU
-        cpu_grid = u.grid
-        cpu_u = u
-    end
-
-    # Form a FunctionField from `f`
-    f_field = field(location(u), f, cpu_grid)
-
-    # Try to set the FuncitonField to cpu_u
-    try
-        set!(cpu_u, f_field)
-    catch err
-        u_loc = Tuple(L() for L in location(u))
-
-        arg_str = tuple_string(node_names(u.grid, u_loc...))
-        loc_str = tuple_string(location(u))
-        topo_str = tuple_string(topology(u.grid))
-
-        msg = string("An error was encountered within set! while setting the field", '\n', '\n',
-                     "    ", prettysummary(u), '\n', '\n',
-                     "Note that to use set!(field, func::Function) on a field at location ",
-                     "(", loc_str, ")", '\n',
-                     "and on a grid with topology (", topo_str, "), func must be ",
-                     "callable via", '\n', '\n',
-                     "     func(", arg_str, ")", '\n')
-        @warn msg
-        throw(err)
-    end
-
-    # Transfer data to GPU if u is on the GPU
-    if architecture(u) isa GPU
-        set!(u, cpu_u)
-    end
+    u .= FunctionField(location(u), f, u.grid)
+    #FunctionField{location(u)[1], location(u)[2], location(u)[3]}(f, u.grid)
 
     return u
 end

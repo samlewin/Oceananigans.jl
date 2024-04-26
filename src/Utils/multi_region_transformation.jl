@@ -116,22 +116,7 @@ Base.parent(mo::MultiRegionObject) = construct_regionally(parent, mo)
 
 # For non-returning functions -> can we make it NON BLOCKING? This seems to be synchronous!
 @inline function apply_regionally!(regional_func!, args...; kwargs...)
-    multi_region_args   = isnothing(findfirst(isregional, args))   ? nothing : args[findfirst(isregional, args)]
-    multi_region_kwargs = isnothing(findfirst(isregional, kwargs)) ? nothing : kwargs[findfirst(isregional, kwargs)]
-    isnothing(multi_region_args) && isnothing(multi_region_kwargs) && return regional_func!(args...; kwargs...)
-
-    if isnothing(multi_region_args) 
-        devs = devices(multi_region_kwargs)
-    else
-        devs = devices(multi_region_args)
-    end
-
-    for (r, dev) in enumerate(devs)
-        switch_device!(dev)
-        regional_func!((getregion(arg, r) for arg in args)...; (getregion(kwarg, r) for kwarg in kwargs)...)
-    end
-
-    sync_all_devices!(devs)
+    return regional_func!(args...; kwargs...)
 
     return nothing
 end 
@@ -203,7 +188,7 @@ macro apply_regionally(expr)
         func = expr.args[1]
         args = expr.args[2:end]
         multi_region = quote
-            apply_regionally!($func, $(args...))
+            $func($(args...))
         end
         return quote
             $(esc(multi_region))
