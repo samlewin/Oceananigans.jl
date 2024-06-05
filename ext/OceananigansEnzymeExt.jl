@@ -424,7 +424,7 @@ end
 
 function EnzymeCore.EnzymeRules.augmented_primal(config,
                                                  func::EnzymeCore.Const{typeof(Oceananigans.Models.HydrostaticFreeSurfaceModels.top_tracer_boundary_conditions)},
-                                                 ::RT, grid,
+                                                 ::Type{RT}, grid,
                                                  tracers) where RT
 
     primal = if EnzymeCore.EnzymeRules.needs_primal(config)
@@ -433,17 +433,26 @@ function EnzymeCore.EnzymeRules.augmented_primal(config,
         nothing
     end
 
-    shadow = if EnzymeCore.EnzymeRules.width(config) == 1
-        func.val(grid.val, tracers.dval)
-    else
-        ntuple(Val(EnzymeCore.EnzymeRules.width(config))) do i
-            Base.@_inline_meta
+    # Check if a shadow is needed here. Don't think this is quite right:
+    shadow = if EnzymeCore.EnzymeRules.needs_shadow(config) == 1
+        if EnzymeCore.EnzymeRules.width(config) == 1
             func.val(grid.val, tracers.dval)
+        else
+            ntuple(Val(EnzymeCore.EnzymeRules.width(config))) do i
+                Base.@_inline_meta
+                func.val(grid.val, tracers.dval)
+            end
         end
+    else
+        nothing
     end
 
-    P = EnzymeCore.EnzymeRules.needs_primal(config) ? RT : Nothing
-    B = batch(Val(EnzymeCore.EnzymeRules.width(config)), RT)
+    P = EnzymeCore.EnzymeRules.needs_primal(config) ? eltype(RT) : Nothing
+    B = EnzymeCore.EnzymeRules.needs_shadow(config) ? (width ==1 ? eltype(RT) : NTuple{width, eltype(RT)}) : Nothing
+    @show primal
+    @show typeof(primal)
+    @show EnzymeCore.EnzymeRules.AugmentedReturn{P, B, Nothing}(primal, shadow, nothing)
+    @show typeof(EnzymeCore.EnzymeRules.AugmentedReturn{P, B, Nothing}(primal, shadow, nothing))
     return EnzymeCore.EnzymeRules.AugmentedReturn{P, B, Nothing}(primal, shadow, nothing)
 end
 
