@@ -449,16 +449,12 @@ function EnzymeCore.EnzymeRules.augmented_primal(config,
 
     P = EnzymeCore.EnzymeRules.needs_primal(config) ? eltype(RT) : Nothing
     B = EnzymeCore.EnzymeRules.needs_shadow(config) ? (width ==1 ? eltype(RT) : NTuple{width, eltype(RT)}) : Nothing
-    @show primal
-    @show typeof(primal)
-    @show EnzymeCore.EnzymeRules.AugmentedReturn{P, B, Nothing}(primal, shadow, nothing)
-    @show typeof(EnzymeCore.EnzymeRules.AugmentedReturn{P, B, Nothing}(primal, shadow, nothing))
     return EnzymeCore.EnzymeRules.AugmentedReturn{P, B, Nothing}(primal, shadow, nothing)
 end
 
 function EnzymeCore.EnzymeRules.reverse(config,
                                         func::EnzymeCore.Const{typeof(Oceananigans.Models.HydrostaticFreeSurfaceModels.top_tracer_boundary_conditions)},
-                                        ::RT, grid,
+                                        ::Type{RT}, grid,
                                         tracers) where RT
     return (nothing, nothing)
 end
